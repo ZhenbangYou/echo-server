@@ -4,10 +4,11 @@ use tokio::net::{TcpListener, TcpStream};
 
 #[tokio::main]
 async fn main() -> io::Result<()> {
-    let receiver = TcpListener::bind("localhost:8080").await?;
+    let receiver = TcpListener::bind("17.149.238.46:65535").await?;
     dbg!(receiver.local_addr().unwrap());
 
-    let mut sender = TcpStream::connect("[::1]:8080").await?;
+    let mut sender = TcpStream::connect("17.149.238.46:65535").await?;
+    dbg!();
     let sender_res = sender.write(b"12345".as_slice());
 
     let (mut stream, _addr) = receiver.accept().await?;
