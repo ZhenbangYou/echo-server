@@ -5,7 +5,7 @@ use tokio::io::{self, AsyncReadExt, AsyncWriteExt};
 use tokio::net::{TcpListener, TcpStream};
 
 const SOCK_ADDR: &str = "[::1]:9009";
-const FILES: usize = 150;
+const FILES: usize = 100;
 const CONTENT: [u8; 10] = [b'q'; 10];
 
 async fn send_one(sock_addr: &str) -> io::Result<()> {
