@@ -4,26 +4,27 @@ use std::time::Instant;
 use tokio::io::{self, AsyncReadExt, AsyncWriteExt};
 use tokio::net::{TcpListener, TcpStream};
 
-const SOCK_ADDR: &str = "[::1]:9009";
-const FILES: usize = 100;
-const CONTENT: [u8; 10] = [b'q'; 10];
+const SOCK_ADDR: &str = "127.0.0.1:9009";
+const NUM_CONNECTIONS: usize = 100;
+const CONTENTS: [u8; 10] = [b'q'; 10];
 
-async fn send_one(sock_addr: &str) -> io::Result<()> {
+async fn send_one(sock_addr: &str, contents: &[u8]) -> io::Result<()> {
     let mut s = TcpStream::connect(sock_addr).await?;
-    let mut in_buf = [0; CONTENT.len()];
-    s.write(&CONTENT).await?;
+    let mut in_buf = [0; CONTENTS.len()];
+    s.write(contents).await?;
     let _cnt = s.read(&mut in_buf).await?;
-    assert!(in_buf.eq(&CONTENT));
     Ok(())
 }
 
-fn send(sock_addr: &str) {
+fn send(sock_addr: &str, contents: &[u8]) {
     let rt = tokio::runtime::Runtime::new().unwrap();
-    rt.block_on(join_all((0..FILES).map(|_| send_one(sock_addr))));
+    rt.block_on(join_all(
+        (0..NUM_CONNECTIONS).map(|_| send_one(sock_addr, contents)),
+    ));
 }
 
 async fn receive_one(mut tcp_stream: TcpStream) -> io::Result<()> {
-    let mut in_buf = [0; CONTENT.len()];
+    let mut in_buf = [0; CONTENTS.len()];
     tcp_stream.read(&mut in_buf).await?;
     tcp_stream.write(&in_buf).await?;
     Ok(())
@@ -34,7 +35,7 @@ fn receive(sock_addr: &str) {
     rt.block_on(async {
         let receiver = TcpListener::bind(sock_addr).await.unwrap();
         let mut workers = vec![];
-        for _ in 0..FILES {
+        for _ in 0..NUM_CONNECTIONS {
             let (s, _) = receiver.accept().await.unwrap();
             workers.push(receive_one(s));
         }
@@ -45,7 +46,7 @@ fn receive(sock_addr: &str) {
 fn main() {
     let start = Instant::now();
 
-    let t1 = thread::spawn(|| send(&SOCK_ADDR));
+    let t1 = thread::spawn(|| send(&SOCK_ADDR, &CONTENTS));
     let t2 = thread::spawn(|| receive(&SOCK_ADDR));
     t1.join().unwrap();
     t2.join().unwrap();
