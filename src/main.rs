@@ -1,18 +1,18 @@
 use futures::future::join_all;
 use std::thread;
 use std::time::Instant;
-use tokio::io::{self, AsyncReadExt, AsyncWriteExt};
-use tokio::net::{TcpListener, TcpStream};
+use tokio::io;
+use tokio::net::UdpSocket;
 
-const SOCK_ADDR: &str = "[::1]:9009";
-const FILES: usize = 100;
+const SOCK_ADDR: &str = "127.0.0.1:9099";
+const FILES: usize = 1000;
 const CONTENT: [u8; 10] = [b'q'; 10];
 
 async fn send_one(sock_addr: &str) -> io::Result<()> {
-    let mut s = TcpStream::connect(sock_addr).await?;
+    let s = UdpSocket::bind("0.0.0.0:0").await?;
     let mut in_buf = [0; CONTENT.len()];
-    s.write(&CONTENT).await?;
-    let _cnt = s.read(&mut in_buf).await?;
+    s.send_to(&CONTENT, sock_addr).await?;
+    let _cnt = s.recv(&mut in_buf).await?;
     assert!(in_buf.eq(&CONTENT));
     Ok(())
 }
@@ -22,23 +22,15 @@ fn send(sock_addr: &str) {
     rt.block_on(join_all((0..FILES).map(|_| send_one(sock_addr))));
 }
 
-async fn receive_one(mut tcp_stream: TcpStream) -> io::Result<()> {
-    let mut in_buf = [0; CONTENT.len()];
-    tcp_stream.read(&mut in_buf).await?;
-    tcp_stream.write(&in_buf).await?;
-    Ok(())
-}
-
 fn receive(sock_addr: &str) {
     let rt = tokio::runtime::Runtime::new().unwrap();
     rt.block_on(async {
-        let receiver = TcpListener::bind(sock_addr).await.unwrap();
-        let mut workers = vec![];
+        let receiver = UdpSocket::bind(sock_addr).await.unwrap();
         for _ in 0..FILES {
-            let (s, _) = receiver.accept().await.unwrap();
-            workers.push(receive_one(s));
+            let mut in_buf = [0; CONTENT.len()];
+            let (_s, addr) = receiver.recv_from(&mut in_buf).await.unwrap();
+            receiver.send_to(&in_buf, addr).await.unwrap();
         }
-        join_all(workers).await
     });
 }
 
