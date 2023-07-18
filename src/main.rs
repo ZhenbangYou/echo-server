@@ -5,7 +5,7 @@ use tokio::io::{self, AsyncReadExt, AsyncWriteExt};
 use tokio::net::{TcpListener, TcpStream};
 
 const SOCK_ADDR: &str = "127.0.0.1:9009";
-const NUM_CONNECTIONS: usize = 10;
+const NUM_CONNECTIONS: usize = 1000;
 const CONTENTS: [u8; 10] = [b'q'; 10];
 
 async fn send_one(sock_addr: &str, contents: &[u8]) -> io::Result<()> {
@@ -18,7 +18,7 @@ async fn send_one(sock_addr: &str, contents: &[u8]) -> io::Result<()> {
 
 fn send(rt: &tokio::runtime::Runtime) {
     rt.block_on(join_all(
-        (0..NUM_CONNECTIONS).map(|_| tokio::spawn(send_one(SOCK_ADDR, &CONTENTS))),
+        (0..NUM_CONNECTIONS).map(|_| async{tokio::spawn(send_one(SOCK_ADDR, &CONTENTS))}),
     ));
 }
 
@@ -35,7 +35,7 @@ fn receive(rt: &tokio::runtime::Runtime) {
         let mut join_handles = vec![];
         for _ in 0..NUM_CONNECTIONS {
             let (s, _) = receiver.accept().await.unwrap();
-            join_handles.push(tokio::spawn(receive_one(s)));
+            join_handles.push(async{tokio::spawn(receive_one(s))});
         }
         join_all(join_handles).await
     });
